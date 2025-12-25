@@ -17,6 +17,26 @@ type UploadPayload = {
 	members: MemberAnalytics[];
 };
 
+type MemberRow = {
+	name: string;
+	phone_number: string | null;
+	messages: number;
+	words: number;
+	media: number;
+	links: number;
+	active_days: number;
+	answer_like: number;
+	reply_helpfulness: number;
+	long_msgs: number;
+	unique_words: number;
+	duplicate_count: number;
+	value_score: number;
+	role: string;
+	vibe: string;
+	badges_json: string | null;
+	samples_json: string | null;
+};
+
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
 	'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
@@ -158,8 +178,8 @@ async function fetchMembersByUpload(env: Env, uploadId: string, query?: string) 
 	}
 	sql += ' ORDER BY ma.value_score DESC';
 
-	const { results } = await env.DB.prepare(sql).bind(...params).all<Record<string, any>>();
-	return results.map((row) => ({
+	const { results } = await env.DB.prepare(sql).bind(...params).all<MemberRow>();
+	return results.map((row: MemberRow) => ({
 		name: row.name,
 		phoneNumber: row.phone_number ?? '',
 		stats: {
@@ -187,7 +207,7 @@ async function fetchMembersByUpload(env: Env, uploadId: string, query?: string) 
 }
 
 export default {
-	async fetch(request, env): Promise<Response> {
+	async fetch(request: Request, env: Env): Promise<Response> {
 		if (request.method === 'OPTIONS') {
 			return new Response(null, { headers: corsHeaders });
 		}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Search, Trophy, TrendingUp, MessageSquare, Trash2, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { analyzeWhatsAppExportTexts, type MemberAnalytics } from './whatsapp';
+import { type MemberAnalytics } from './whatsapp';
 
 import { ArchetypeCard } from './components/ArchetypeCard';
 import { cn } from './lib/utils';
@@ -70,18 +70,6 @@ async function fetchUpload(uploadId: string): Promise<Member[]> {
   return (payload.members ?? []).map(normalizeMember);
 }
 
-async function postUpload(members: Member[], sourceLabel: string): Promise<{ upload_id: string }> {
-  const res = await fetch(`${API_BASE}/api/uploads`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source_label: sourceLabel, members }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || 'Failed to save upload.');
-  }
-  return res.json();
-}
 
 function App() {
   const [data, setData] = useState<Member[]>([]);
@@ -89,7 +77,6 @@ function App() {
   const [selectedProfile, setSelectedProfile] = useState<Member | null>(null);
   const [loading, setLoading] = useState(true);
   const [sourceLabel, setSourceLabel] = useState<string>('');
-  const [error, setError] = useState<string>('');
   const [searchError, setSearchError] = useState<string>('');
 
   useEffect(() => {
@@ -241,22 +228,26 @@ function App() {
 
         {/* Navigation / Header */}
         <nav className="w-full flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
-          <div className="flex flex-col items-center md:items-start text-center md:text-left">
-            <h1 className="text-3xl font-display font-medium tracking-tight text-white/90">
-              Echoes
-            </h1>
-            <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">WhatsApp Analytics</span>
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/5 p-1">
+              <img
+                src="/assets/icon.png"
+                alt="Echoes dashboard icon"
+                className="h-full w-full rounded-xl object-cover"
+              />
+            </div>
+            <div className="flex flex-col items-center md:items-start text-center md:text-left">
+              <h1 className="text-3xl font-display font-medium tracking-tight text-white/90">
+                Echoes
+              </h1>
+              <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">WhatsApp Analytics</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 w-auto justify-center">
             {/* Upload Button */}
 
             {/* Error Display */}
-            {error && (
-              <div className="absolute top-16 right-0 bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-3 py-2 rounded-lg backdrop-blur-md">
-                {error}
-              </div>
-            )}
 
             {/* Reset Button */}
             {sourceLabel !== 'Demo data' && (
