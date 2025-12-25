@@ -156,7 +156,7 @@ function App() {
       setSelectedProfile(found);
       setSearchError('');
     } else {
-      setSearchError('No match. Try the saved contact name — numbers are often hidden in exports.');
+      setSearchError('not_found');
     }
   };
 
@@ -397,7 +397,9 @@ function App() {
                   </button>
                 </div>
                 {searchError && (
-                  <p className="text-sm text-amber-300 mt-3">{searchError}</p>
+                  <div className="mt-6 flex justify-center">
+                    <GhostSearchCard query={search} />
+                  </div>
                 )}
               </div>
             </div>
@@ -537,6 +539,26 @@ const TribeBoard = ({ role, count, members, delay, onPick }: any) => (
       {members.length === 0 && (
         <div className="text-xs text-white/30 italic">No members yet.</div>
       )}
+    </div>
+  </div>
+);
+
+const GhostSearchCard = ({ query }: { query: string }) => (
+  <div className="w-full max-w-sm">
+    <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.03] p-6 text-left shadow-2xl">
+      <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/20 via-purple-500/10 to-transparent" />
+      <div className="relative z-10 space-y-3">
+        <span className="text-[10px] uppercase tracking-[0.25em] text-white/50">Ghost</span>
+        <h3 className="text-2xl font-display font-semibold text-white">Unlisted Character</h3>
+        <p className="text-sm text-white/70 leading-relaxed">
+          Some say you are Myth, some say you are real - wonder which you are?
+          <br />
+          404 page is more real than you.
+        </p>
+        {query.trim() && (
+          <p className="text-xs text-white/40">Searched: "{query.trim()}"</p>
+        )}
+      </div>
     </div>
   </div>
 );
