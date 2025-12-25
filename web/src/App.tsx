@@ -3,11 +3,12 @@ import { Search, Trophy, TrendingUp, MessageSquare, Trash2, ArrowRight } from 'l
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { type MemberAnalytics } from './whatsapp';
 
-import { ArchetypeCard } from './components/ArchetypeCard';
+import { ArchetypeCard, getArchetypeConfig } from './components/ArchetypeCard';
 import { cn } from './lib/utils';
 
 type Member = MemberAnalytics;
 const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? '';
+const ASSET_BASE = import.meta.env.BASE_URL ?? '/';
 const UPLOAD_KEY = 'wa_upload_id_v1';
 
 const memberKey = (member: Member) => `${member.name}::${member.phoneNumber ?? ''}`;
@@ -16,7 +17,7 @@ const CREATOR_DISPLAY = 'Sovereign of the Void';
 const CREATOR_TAG = '@ALikesToCode';
 const ARCHETYPE_ORDER = [
   'Ghost',
-  'Member',
+  'Shadow Watcher',
   'Problem Solver',
   'Curator',
   'Comedian',
@@ -231,7 +232,7 @@ function App() {
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/5 p-1">
               <img
-                src="/assets/icon.png"
+                src={`${ASSET_BASE}assets/icon.png`}
                 alt="Echoes dashboard icon"
                 className="h-full w-full rounded-xl object-cover"
               />
@@ -260,7 +261,15 @@ function App() {
 
         {/* Viewing Profile Mode */}
         {selectedProfile ? (
-          <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
+          <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out relative">
+            {/* Dynamic Archetype Lighting Mesh */}
+            <div className="absolute inset-x-0 top-[-200px] h-[600px] pointer-events-none -z-10 opacity-30">
+              <div className={cn(
+                "w-full h-full bg-gradient-to-b blur-[120px] transition-all duration-1000",
+                getArchetypeConfig(selectedProfile.analysis.role).gradient
+              )} />
+            </div>
+
             <button onClick={() => setSelectedProfile(null)} className="group flex items-center gap-2 text-white/40 hover:text-white text-sm mb-8 py-2 transition-colors">
               <ArrowRight className="w-4 h-4 rotate-180 transition-transform group-hover:-translate-x-1" />
               Back to Dashboard
@@ -425,7 +434,7 @@ function App() {
               </div>
 
               <div className="flex gap-6 md:gap-8 overflow-x-auto pb-8 snap-x snap-mandatory px-4 md:px-0 -mx-4 md:mx-0 scrollbar-hide">
-                {["Ghost", "Problem Solver", "Curator", "Comedian", "Asker", "Deep Writer"].map((role) => (
+                {ARCHETYPE_ORDER.map((role) => (
                   <div key={role} className="flex-shrink-0 w-[200px] md:w-[240px] snap-center first:pl-2">
                     <ArchetypeCard role={role} className="shadow-2xl" />
                   </div>

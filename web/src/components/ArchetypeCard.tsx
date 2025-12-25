@@ -1,44 +1,54 @@
 import { useMemo } from 'react';
 import { cn } from '../lib/utils'; // Assuming utils exists or I will create it/inline it
 
+const ASSET_BASE = import.meta.env.BASE_URL ?? '/';
+const assetPath = (path: string) => `${ASSET_BASE.replace(/\/?$/, '/')}${path.replace(/^\//, '')}`;
+
 // Map roles to their respective image assets and gradient themes
-const ARCHETYPE_CONFIG: Record<string, { image: string, gradient: string, glow: string }> = {
+export const ARCHETYPE_CONFIG: Record<string, { image: string, gradient: string, glow: string }> = {
     "Ghost": {
-        image: "/assets/avatars/Ghost.png",
+        image: assetPath("assets/avatars/Ghost.png"),
         gradient: "from-indigo-500 via-purple-500 to-slate-800",
         glow: "shadow-indigo-500/50"
     },
     "Problem Solver": {
-        image: "/assets/avatars/ProblemSolver.png",
+        image: assetPath("assets/avatars/ProblemSolver.png"),
         gradient: "from-orange-400 via-amber-500 to-yellow-600",
         glow: "shadow-amber-500/50"
     },
     "Curator": {
-        image: "/assets/avatars/Curator.png",
+        image: assetPath("assets/avatars/Curator.png"),
         gradient: "from-emerald-400 via-teal-500 to-cyan-600",
         glow: "shadow-teal-500/50"
     },
     "Comedian": {
-        image: "/assets/avatars/Comedian.png",
+        image: assetPath("assets/avatars/Comedian.png"),
         gradient: "from-pink-500 via-rose-500 to-red-600",
         glow: "shadow-pink-500/50"
     },
     "Asker": {
-        image: "/assets/avatars/Asker.png",
+        image: assetPath("assets/avatars/Asker.png"),
         gradient: "from-violet-500 via-purple-500 to-fuchsia-600",
         glow: "shadow-purple-500/50"
     },
     "Deep Writer": {
-        image: "/assets/avatars/DeepWriter.png",
+        image: assetPath("assets/avatars/DeepWriter.png"),
         gradient: "from-blue-600 via-indigo-600 to-violet-700",
         glow: "shadow-blue-500/50"
     },
     // Fallback
     "Shadow Watcher": {
-        image: "/assets/avatars/ShadowWatcher.png",
+        image: assetPath("assets/avatars/ShadowWatcher.png"),
         gradient: "from-zinc-700 via-zinc-800 to-zinc-900",
         glow: "shadow-zinc-500/50"
     }
+};
+
+export const getArchetypeConfig = (role: string) => {
+    if (ARCHETYPE_CONFIG[role]) return ARCHETYPE_CONFIG[role];
+    if (role.includes("Writer")) return ARCHETYPE_CONFIG["Deep Writer"];
+    if (role.includes("Problem") || role.includes("Fixer")) return ARCHETYPE_CONFIG["Problem Solver"];
+    return ARCHETYPE_CONFIG["Shadow Watcher"];
 };
 
 interface ArchetypeCardProps {
@@ -47,16 +57,7 @@ interface ArchetypeCardProps {
 }
 
 export function ArchetypeCard({ role, className }: ArchetypeCardProps) {
-    const config = useMemo(() => {
-        // Fuzzy match or exact match? The python script output exact strings.
-        // If not found, check if it contains keywords or default
-        if (ARCHETYPE_CONFIG[role]) return ARCHETYPE_CONFIG[role];
-
-        // Fallback logic
-        if (role.includes("Writer")) return ARCHETYPE_CONFIG["Deep Writer"];
-        if (role.includes("Problem") || role.includes("Fixer")) return ARCHETYPE_CONFIG["Problem Solver"];
-        return ARCHETYPE_CONFIG["Shadow Watcher"];
-    }, [role]);
+    const config = useMemo(() => getArchetypeConfig(role), [role]);
 
     return (
         <div className={cn("relative group perspective-1000", className)}>
