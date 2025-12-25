@@ -1,0 +1,16 @@
+{
+	"name": "echos-whatsapp-worker",
+	"account_id": "9b0a1524e478000ec9b3ff2da6104d81",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-12-25",
+	"observability": {
+		"enabled": true,
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "agnu-echoes",
+			"database_id": "2b28b3a6-c11a-4551-8cd3-0771700e136b"
+		}
+	]
+}

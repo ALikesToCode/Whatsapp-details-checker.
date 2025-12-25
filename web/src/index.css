@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Outfit", sans-serif;
+  --font-body: "Instrument Sans", sans-serif;
+
+  --color-background: 240 10% 3.9%;
+  /* Richer dark */
+  --color-foreground: 0 0% 98%;
+
+  --color-card: 240 10% 5.9%;
+  --color-card-foreground: 0 0% 98%;
+
+  --color-primary: 263.4 70% 50.4%;
+  /* Artistic Purple */
+  --color-primary-foreground: 210 40% 98%;
+}
+
+body {
+  font-family: var(--font-body);
+  @apply bg-[#050508] text-white selection:bg-purple-500/30;
+
+  /* Safe area support for mobile devices with notches */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+
+  /* Prevent horizontal overflow globally */
+  overflow-x: hidden;
+}
