@@ -21,6 +21,15 @@ ALLOWED_BADGES = [
     "Media Mogul",
     "Echo Chamber",
 ]
+ALLOWED_ROLES = [
+    "Ghost",
+    "Problem Solver",
+    "Curator",
+    "Comedian",
+    "Asker",
+    "Deep Writer",
+    "Member",
+]
 
 
 def _default_output_path() -> str:
@@ -57,6 +66,7 @@ def _llm_enrich_member(member: dict, *, timeout_s: int = 60) -> dict:
     if not OPENROUTER_API_KEY:
         return member
 
+    heuristic_role = member.get("analysis", {}).get("role", "Member")
     sample = member.get("samples") or []
     msgs_text = "\n".join(sample[-40:])
     stats = member.get("stats") or {}
@@ -70,7 +80,9 @@ def _llm_enrich_member(member: dict, *, timeout_s: int = 60) -> dict:
         f"{msgs_text}\n\n"
         "Task:\n"
         "1) Assign a Value Score (1-10) based on helpfulness, insight, and community-building (not volume).\n"
-        '2) Assign a short Role label (e.g., "Problem Solver", "Curator", "Comedian").\n'
+        "2) Assign a short Role label from this list ONLY:\n"
+        f"{', '.join(ALLOWED_ROLES)}\n"
+        "Pick the best fit. Use Member only if there is no strong signal for any role.\n"
         "3) Write a 1-sentence Vibe.\n"
         "4) Choose 0-5 badges from this allowed list only:\n"
         f"{', '.join(ALLOWED_BADGES)}\n\n"
@@ -128,7 +140,29 @@ def _llm_enrich_member(member: dict, *, timeout_s: int = 60) -> dict:
     heuristic_score = float(member["analysis"]["value_score"])
     blended = round(min(10.0, max(1.0, (0.75 * llm_score) + (0.25 * heuristic_score))), 1)
     member["analysis"]["value_score"] = blended
-    member["analysis"]["role"] = str(data.get("role") or member["analysis"]["role"])[:60]
+    role_raw = str(data.get("role") or heuristic_role)[:60].strip()
+    role_norm = role_raw
+    if role_raw not in ALLOWED_ROLES:
+        role_lower = role_raw.lower()
+        if "solver" in role_lower or "problem" in role_lower:
+            role_norm = "Problem Solver"
+        elif "curat" in role_lower or "source" in role_lower:
+            role_norm = "Curator"
+        elif "comed" in role_lower or "joke" in role_lower:
+            role_norm = "Comedian"
+        elif "writer" in role_lower or "deep" in role_lower:
+            role_norm = "Deep Writer"
+        elif "ask" in role_lower:
+            role_norm = "Asker"
+        elif "ghost" in role_lower:
+            role_norm = "Ghost"
+        else:
+            role_norm = heuristic_role
+
+    if role_norm == "Member" and heuristic_role != "Member":
+        role_norm = heuristic_role
+
+    member["analysis"]["role"] = role_norm
     member["analysis"]["vibe"] = str(data.get("vibe") or member["analysis"]["vibe"])[:140]
 
     if "badges" in data:

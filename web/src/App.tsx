@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Trophy, TrendingUp, MessageSquare, Upload, Trash2, ArrowRight } from 'lucide-react';
+import { Search, Trophy, TrendingUp, MessageSquare, Trash2, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { analyzeWhatsAppExportTexts, type MemberAnalytics } from './whatsapp';
 
@@ -11,10 +11,28 @@ const API_BASE = (import.meta as any).env?.VITE_API_BASE ?? '';
 const UPLOAD_KEY = 'wa_upload_id_v1';
 
 const memberKey = (member: Member) => `${member.name}::${member.phoneNumber ?? ''}`;
+const CREATOR_MATCH = 'Abhyudaya';
+const CREATOR_DISPLAY = 'Sovereign of the Void';
+const CREATOR_TAG = '@ALikesToCode';
+const ARCHETYPE_ORDER = [
+  'Ghost',
+  'Member',
+  'Problem Solver',
+  'Curator',
+  'Comedian',
+  'Asker',
+  'Deep Writer',
+];
+const CREATOR_GITHUB = 'https://github.com/ALikesToCode/';
 
 const toNumber = (value: unknown, fallback = 0) => {
   const num = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(num) ? num : fallback;
+};
+
+const displayName = (member: Member) => {
+  if (member.name === CREATOR_MATCH) return `${CREATOR_DISPLAY} ${CREATOR_TAG}`;
+  return member.name;
 };
 
 const normalizeMember = (member: any): Member => ({
@@ -38,7 +56,7 @@ const normalizeMember = (member: any): Member => ({
     : undefined,
   analysis: {
     value_score: toNumber(member?.analysis?.value_score),
-    role: member?.analysis?.role ?? 'Member',
+    role: member?.analysis?.role ?? 'Shadow Watcher',
     vibe: member?.analysis?.vibe ?? '',
   },
   badges: Array.isArray(member?.badges) ? member.badges : [],
@@ -154,36 +172,6 @@ function App() {
     }
   };
 
-  const handleUpload = async (files: FileList | null) => {
-    setError('');
-    if (!files || files.length === 0) return;
-    setLoading(true);
-    setSelectedProfile(null);
-    try {
-      const texts = await Promise.all(Array.from(files).map((f) => f.text()));
-      const members = analyzeWhatsAppExportTexts(texts);
-      const normalized = members.map(normalizeMember);
-      const label = `${files.length} export(s)`;
-      try {
-        const response = await postUpload(normalized, label);
-        localStorage.setItem(UPLOAD_KEY, response.upload_id);
-        setSourceLabel('Saved upload');
-      } catch (err: any) {
-        console.error('Failed to save upload', err);
-        setSourceLabel(label);
-        setError('Saved locally (API unavailable).');
-      }
-
-      setData(normalized);
-      localStorage.setItem('wa_members_v1', JSON.stringify(normalized));
-      localStorage.setItem('wa_members_source_v1', label);
-      setSearchError('');
-    } catch (e: any) {
-      setError(e?.message || 'Failed to parse export(s).');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const clearLocalData = () => {
     localStorage.removeItem('wa_members_v1');
@@ -206,17 +194,17 @@ function App() {
     }, {} as Record<string, number>);
 
     // Convert to array and sort
-    const topArchetypes = Object.entries(byArchetype)
-      .map(([role, count]) => ({ role, count }))
+    const topArchetypes = ARCHETYPE_ORDER
+      .map((role) => ({ role, count: byArchetype[role] || 0 }))
       .sort((a, b) => b.count - a.count);
 
-    const tribeBoards = Object.entries(byArchetype)
-      .map(([role, count]) => {
+    const tribeBoards = ARCHETYPE_ORDER
+      .map((role) => {
         const members = data
           .filter((m) => (m.analysis.role || 'Member') === role)
           .sort((a, b) => b.analysis.value_score - a.analysis.value_score)
           .slice(0, 5);
-        return { role, count, members };
+        return { role, count: byArchetype[role] || 0, members };
       })
       .sort((a, b) => b.count - a.count);
 
@@ -262,12 +250,6 @@ function App() {
 
           <div className="flex items-center gap-3 w-auto justify-center">
             {/* Upload Button */}
-            <label className="group relative flex items-center gap-2 px-5 py-2.5 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer overflow-hidden active:scale-95 touch-manipulation">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Upload className="w-4 h-4 text-white/70" />
-              <span className="text-sm text-white/80 font-medium">Import Chat</span>
-              <input className="hidden" type="file" accept=".txt,text/plain" multiple onChange={(e) => void handleUpload(e.target.files)} />
-            </label>
 
             {/* Error Display */}
             {error && (
@@ -321,12 +303,17 @@ function App() {
                     </h1>
                   </div>
                   <h2 className="text-3xl md:text-5xl lg:text-7xl font-display font-medium text-white mb-4 tracking-tight leading-none break-words">
-                    {selectedProfile.name}
+                    {displayName(selectedProfile)}
                   </h2>
                   <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-6">
                     <span className="px-3 py-1 rounded-full border border-white/10 bg-white/5 text-xs text-purple-300 font-mono flex-shrink-0">
                       Score: {selectedProfile.analysis.value_score}
                     </span>
+                    {selectedProfile.name === CREATOR_MATCH && (
+                      <span className="px-3 py-1 rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 text-xs text-fuchsia-200 font-mono flex-shrink-0">
+                        Creator
+                      </span>
+                    )}
                     {selectedProfile.badges.map(b => (
                       <span key={b} className="text-xs text-white/50 flex items-center gap-1 flex-shrink-0">
                         • {b}
@@ -360,7 +347,7 @@ function App() {
                         <YAxis hide />
                         <Tooltip
                           cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                          contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
+                          contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e4e4e7', borderRadius: '12px', color: '#000000' }}
                         />
                         <Bar dataKey="value" radius={[6, 6, 6, 6]}>
                           {['#8b5cf6', '#ec4899', '#06b6d4'].map((color, i) => (
@@ -455,8 +442,18 @@ function App() {
               </div>
             </div>
 
-            <footer className="text-center text-white/20 text-sm font-light mt-20">
-              Experiment by <strong>Echoes</strong> • Local Processing Only
+            <footer className="text-center text-white/30 text-sm font-light mt-20 flex flex-col items-center gap-3">
+              <a
+                href={CREATOR_GITHUB}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-colors text-white/70"
+              >
+                Follow on GitHub
+              </a>
+              <span>
+                Made with love by <a className="text-white/70 hover:text-white" href={CREATOR_GITHUB} target="_blank" rel="noreferrer">@ALikesToCode</a>
+              </span>
             </footer>
           </div>
         )}
@@ -497,7 +494,7 @@ const RankList = ({ title, icon, members, metric, onPick, delay, accent }: any) 
         >
           <div className="flex items-center gap-3 min-w-0">
             <span className="font-mono text-xs text-white/30 w-4 flex-shrink-0">{i + 1}</span>
-            <span className="text-white/80 group-hover:text-white transition-colors text-xs md:text-sm font-medium truncate">{m.name}</span>
+            <span className="text-white/80 group-hover:text-white transition-colors text-xs md:text-sm font-medium truncate">{displayName(m)}</span>
           </div>
           <span className="font-mono text-xs text-white/40 group-hover:text-white/60 flex-shrink-0 pl-2">
             {metric === 'value_score'
@@ -533,7 +530,7 @@ const TribeBoard = ({ role, count, members, delay, onPick }: any) => (
           onClick={() => onPick(m)}
           className="w-full flex items-center justify-between rounded-xl px-3 py-2 hover:bg-white/5 transition-colors text-left group"
         >
-          <span className="text-xs md:text-sm text-white/80 truncate pr-2 group-hover:text-white transition-colors">{m.name}</span>
+          <span className="text-xs md:text-sm text-white/80 truncate pr-2 group-hover:text-white transition-colors">{displayName(m)}</span>
           <span className="text-xs font-mono text-white/40 flex-shrink-0">{toNumber(m.analysis.value_score).toFixed(1)}</span>
         </button>
       ))}

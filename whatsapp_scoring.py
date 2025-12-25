@@ -209,6 +209,13 @@ def _minmax(values: list[float]) -> tuple[float, float]:
         return (0.0, 0.0)
     return (min(values), max(values))
 
+def _percentile(values: list[float], p: float) -> float:
+    if not values:
+        return 0.0
+    sorted_vals = sorted(values)
+    idx = int(round((len(sorted_vals) - 1) * p))
+    return sorted_vals[min(max(idx, 0), len(sorted_vals) - 1)]
+
 
 def _norm(value: float, lo: float, hi: float) -> float:
     if hi <= lo:
@@ -374,6 +381,15 @@ def analyze_members(messages: list[ChatMessage], participants: set[str] | None =
         "short_ratio",
     ]}
 
+    thresholds = {
+        "answer_like": max(2, _percentile(gather("answer_like"), 0.85)),
+        "reply_helpfulness": max(1, _percentile(gather("reply_helpfulness"), 0.85)),
+        "link_count": max(2, _percentile(gather("link_count"), 0.9)),
+        "laughs": max(1, _percentile(gather("laughs"), 0.9)),
+        "long_msgs": max(2, _percentile(gather("long_msgs"), 0.9)),
+        "question_count": max(2, _percentile(gather("question_count"), 0.9)),
+    }
+
     members: list[dict[str, Any]] = []
     for sender, m in metrics.items():
         helpful = (
@@ -396,7 +412,7 @@ def analyze_members(messages: list[ChatMessage], participants: set[str] | None =
         value_score = 1 + 9 * score_0_1
         value_score = round(_clamp(value_score, 1, 10), 1)
 
-        role = _role_from_metrics(m, value_score)
+        role = _role_from_metrics(m, value_score, thresholds)
         vibe = _vibe_from_metrics(m, role)
         badges = _badges_from_metrics(m, value_score)
 
@@ -432,18 +448,18 @@ def analyze_members(messages: list[ChatMessage], participants: set[str] | None =
     return members
 
 
-def _role_from_metrics(m: dict[str, Any], value_score: float) -> str:
-    if m["msg_count"] <= 3:
+def _role_from_metrics(m: dict[str, Any], value_score: float, thresholds: dict[str, float]) -> str:
+    if m["msg_count"] <= 2:
         return "Ghost"
-    if m["answer_like"] >= 8 or m["reply_helpfulness"] >= 6:
+    if m["answer_like"] >= thresholds["answer_like"] or m["reply_helpfulness"] >= thresholds["reply_helpfulness"]:
         return "Problem Solver"
-    if m["link_count"] >= 15:
+    if m["link_count"] >= thresholds["link_count"]:
         return "Curator"
-    if m["laughs"] >= 8:
+    if m["laughs"] >= thresholds["laughs"]:
         return "Comedian"
-    if m["question_count"] >= 12 and value_score < 6:
+    if m["question_count"] >= thresholds["question_count"] and value_score < 7:
         return "Asker"
-    if m["long_msgs"] >= 10:
+    if m["long_msgs"] >= thresholds["long_msgs"]:
         return "Deep Writer"
     return "Member"
 

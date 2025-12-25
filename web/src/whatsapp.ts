@@ -148,6 +148,13 @@ function minmax(values: number[]): [number, number] {
   return [Math.min(...values), Math.max(...values)];
 }
 
+function percentile(values: number[], p: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.round((sorted.length - 1) * p);
+  return sorted[Math.min(Math.max(idx, 0), sorted.length - 1)];
+}
+
 function norm(value: number, [lo, hi]: [number, number]): number {
   if (hi <= lo) return 0;
   return Math.max(0, Math.min(1, (value - lo) / (hi - lo)));
@@ -264,6 +271,15 @@ export function analyzeWhatsAppMessages(messages: ChatMessage[]): MemberAnalytic
 
   for (const [sender, m] of metrics.entries()) m.reply_helpfulness = replyHelp.get(sender) ?? 0;
 
+  const thresholds = {
+    answer_like: Math.max(2, percentile(Array.from(metrics.values()).map((m) => m.answer_like), 0.85)),
+    reply_helpfulness: Math.max(1, percentile(Array.from(metrics.values()).map((m) => m.reply_helpfulness), 0.85)),
+    link_count: Math.max(2, percentile(Array.from(metrics.values()).map((m) => m.link_count), 0.9)),
+    laughs: Math.max(1, percentile(Array.from(metrics.values()).map((m) => m.laughs), 0.9)),
+    long_msgs: Math.max(2, percentile(Array.from(metrics.values()).map((m) => m.long_msgs), 0.9)),
+    question_count: Math.max(2, percentile(Array.from(metrics.values()).map((m) => m.question_count), 0.9)),
+  };
+
   const keys = [
     'answer_like',
     'reply_helpfulness',
@@ -293,7 +309,7 @@ export function analyzeWhatsAppMessages(messages: ChatMessage[]): MemberAnalytic
     const score01 = 1 / (1 + Math.exp(-3 * (raw - 0.9)));
     const valueScore = Math.round(clamp(1 + 9 * score01, 1, 10) * 10) / 10;
 
-    const role = roleFrom(m, valueScore);
+    const role = roleFrom(m, valueScore, thresholds);
     const vibe = vibeFrom(m, role);
     const badges = badgesFrom(m, valueScore);
 
@@ -345,13 +361,13 @@ export function analyzeWhatsAppExportTexts(texts: string[]): MemberAnalytics[] {
   return members;
 }
 
-function roleFrom(m: any, valueScore: number): string {
-  if (m.msg_count <= 3) return 'Ghost';
-  if (m.answer_like >= 8 || m.reply_helpfulness >= 6) return 'Problem Solver';
-  if (m.link_count >= 15) return 'Curator';
-  if (m.laughs >= 8) return 'Comedian';
-  if (m.question_count >= 12 && valueScore < 6) return 'Asker';
-  if (m.long_msgs >= 10) return 'Deep Writer';
+function roleFrom(m: any, valueScore: number, thresholds: any): string {
+  if (m.msg_count <= 2) return 'Ghost';
+  if (m.answer_like >= thresholds.answer_like || m.reply_helpfulness >= thresholds.reply_helpfulness) return 'Problem Solver';
+  if (m.link_count >= thresholds.link_count) return 'Curator';
+  if (m.laughs >= thresholds.laughs) return 'Comedian';
+  if (m.question_count >= thresholds.question_count && valueScore < 7) return 'Asker';
+  if (m.long_msgs >= thresholds.long_msgs) return 'Deep Writer';
   return 'Member';
 }
 

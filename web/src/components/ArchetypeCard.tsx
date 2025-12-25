@@ -34,8 +34,8 @@ const ARCHETYPE_CONFIG: Record<string, { image: string, gradient: string, glow: 
         glow: "shadow-blue-500/50"
     },
     // Fallback
-    "Member": {
-        image: "/assets/avatars/Ghost.png", // Default to Ghost for now or generic
+    "Shadow Watcher": {
+        image: "/assets/avatars/ShadowWatcher.png",
         gradient: "from-zinc-700 via-zinc-800 to-zinc-900",
         glow: "shadow-zinc-500/50"
     }
@@ -55,7 +55,7 @@ export function ArchetypeCard({ role, className }: ArchetypeCardProps) {
         // Fallback logic
         if (role.includes("Writer")) return ARCHETYPE_CONFIG["Deep Writer"];
         if (role.includes("Problem") || role.includes("Fixer")) return ARCHETYPE_CONFIG["Problem Solver"];
-        return ARCHETYPE_CONFIG["Member"];
+        return ARCHETYPE_CONFIG["Shadow Watcher"];
     }, [role]);
 
     return (
