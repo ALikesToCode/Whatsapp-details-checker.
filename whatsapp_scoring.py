@@ -379,6 +379,10 @@ def analyze_members(messages: list[ChatMessage], participants: set[str] | None =
         "active_days",
         "duplicate_count",
         "short_ratio",
+        "question_count",
+        "laughs",
+        "emoji_like",
+        "avg_words",
     ]}
 
     thresholds = {
@@ -390,7 +394,6 @@ def analyze_members(messages: list[ChatMessage], participants: set[str] | None =
         "question_count": max(2, _percentile(gather("question_count"), 0.9)),
     }
 
-    members: list[dict[str, Any]] = []
     for sender, m in metrics.items():
         helpful = (
             0.65 * _norm(m["answer_like"], *ranges["answer_like"])
@@ -411,10 +414,15 @@ def analyze_members(messages: list[ChatMessage], participants: set[str] | None =
         score_0_1 = 1.0 / (1.0 + math.exp(-3.0 * (raw - 0.9)))  # squash
         value_score = 1 + 9 * score_0_1
         value_score = round(_clamp(value_score, 1, 10), 1)
+        m["value_score"] = value_score
 
-        role = _role_from_metrics(m, value_score, thresholds)
+    roles = _assign_roles_balanced(metrics, ranges)
+
+    members: list[dict[str, Any]] = []
+    for sender, m in metrics.items():
+        role = roles.get(sender, "Shadow Watcher")
         vibe = _vibe_from_metrics(m, role)
-        badges = _badges_from_metrics(m, value_score)
+        badges = _badges_from_metrics(m, m["value_score"])
 
         members.append(
             {
@@ -435,7 +443,7 @@ def analyze_members(messages: list[ChatMessage], participants: set[str] | None =
                     "duplicate_count": m["duplicate_count"],
                 },
                 "analysis": {
-                    "value_score": value_score,
+                    "value_score": m["value_score"],
                     "role": role,
                     "vibe": vibe,
                 },
@@ -446,6 +454,88 @@ def analyze_members(messages: list[ChatMessage], participants: set[str] | None =
 
     members.sort(key=lambda x: x["analysis"]["value_score"], reverse=True)
     return members
+
+
+def _role_scores(m: dict[str, Any], ranges: dict[str, tuple[float, float]]) -> dict[str, float]:
+    return {
+        "Problem Solver": (
+            0.65 * _norm(m["answer_like"], *ranges["answer_like"])
+            + 0.35 * _norm(m["reply_helpfulness"], *ranges["reply_helpfulness"])
+        ),
+        "Curator": _norm(m["link_count"], *ranges["link_count"]),
+        "Comedian": (
+            0.70 * _norm(m["laughs"], *ranges["laughs"])
+            + 0.30 * _norm(m["emoji_like"], *ranges["emoji_like"])
+        ),
+        "Asker": _norm(m["question_count"], *ranges["question_count"]),
+        "Deep Writer": (
+            0.60 * _norm(m["long_msgs"], *ranges["long_msgs"])
+            + 0.25 * _norm(m["unique_words"], *ranges["unique_words"])
+            + 0.15 * _norm(m["avg_words"], *ranges["avg_words"])
+        ),
+    }
+
+
+def _assign_roles_balanced(
+    metrics: dict[str, dict[str, Any]],
+    ranges: dict[str, tuple[float, float]],
+) -> dict[str, str]:
+    roles = ["Problem Solver", "Curator", "Comedian", "Asker", "Deep Writer", "Shadow Watcher"]
+    assigned: dict[str, str] = {}
+
+    active = [sender for sender, m in metrics.items() if m["msg_count"] > 2]
+    for sender, m in metrics.items():
+        if m["msg_count"] <= 2:
+            assigned[sender] = "Ghost"
+
+    if not active:
+        return assigned
+
+    base = len(active) // len(roles)
+    remainder = len(active) % len(roles)
+    targets = {role: base + (1 if idx < remainder else 0) for idx, role in enumerate(roles)}
+    remaining = dict(targets)
+
+    scores: dict[str, dict[str, float]] = {}
+    for sender in active:
+        role_scores = _role_scores(metrics[sender], ranges)
+        shadow = 1.0 - max(role_scores.values() or [0.0])
+        role_scores["Shadow Watcher"] = _clamp(shadow, 0.0, 1.0)
+        scores[sender] = role_scores
+
+    rankings = {
+        role: sorted(active, key=lambda s: scores[s][role], reverse=True)
+        for role in roles
+    }
+    indices = {role: 0 for role in roles}
+
+    progress = True
+    while progress:
+        progress = False
+        for role in roles:
+            if remaining[role] <= 0:
+                continue
+            ranking = rankings[role]
+            while indices[role] < len(ranking) and ranking[indices[role]] in assigned:
+                indices[role] += 1
+            if indices[role] >= len(ranking):
+                continue
+            sender = ranking[indices[role]]
+            indices[role] += 1
+            assigned[sender] = role
+            remaining[role] -= 1
+            progress = True
+
+    if len(assigned) < len(metrics):
+        leftovers = [s for s in active if s not in assigned]
+        for sender in leftovers:
+            candidates = [r for r in roles if remaining.get(r, 0) > 0] or roles
+            best_role = max(candidates, key=lambda r: scores[sender][r])
+            assigned[sender] = best_role
+            if remaining.get(best_role, 0) > 0:
+                remaining[best_role] -= 1
+
+    return assigned
 
 
 def _role_from_metrics(m: dict[str, Any], value_score: float, thresholds: dict[str, float]) -> str:
@@ -461,7 +551,7 @@ def _role_from_metrics(m: dict[str, Any], value_score: float, thresholds: dict[s
         return "Asker"
     if m["long_msgs"] >= thresholds["long_msgs"]:
         return "Deep Writer"
-    return "Member"
+    return "Shadow Watcher"
 
 
 def _vibe_from_metrics(m: dict[str, Any], role: str) -> str:
@@ -477,6 +567,8 @@ def _vibe_from_metrics(m: dict[str, Any], role: str) -> str:
         return "Writes thoughtful messages with real substance."
     if role == "Asker":
         return "Asks a lot — sparks threads and pulls people in."
+    if role == "Shadow Watcher":
+        return "Quiet presence with rare but notable moments."
     if m["duplicate_count"] >= 5:
         return "Occasionally spammy, but still part of the lore."
     return "Consistent presence with a steady contribution."

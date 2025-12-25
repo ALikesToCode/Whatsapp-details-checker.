@@ -368,7 +368,7 @@ function roleFrom(m: any, valueScore: number, thresholds: any): string {
   if (m.laughs >= thresholds.laughs) return 'Comedian';
   if (m.question_count >= thresholds.question_count && valueScore < 7) return 'Asker';
   if (m.long_msgs >= thresholds.long_msgs) return 'Deep Writer';
-  return 'Member';
+  return 'Shadow Watcher';
 }
 
 function vibeFrom(m: any, role: string): string {
@@ -378,6 +378,7 @@ function vibeFrom(m: any, role: string): string {
   if (role === 'Comedian') return 'Keeps the vibe light and the chat alive.';
   if (role === 'Deep Writer') return 'Writes thoughtful messages with real substance.';
   if (role === 'Asker') return 'Asks a lot — sparks threads and pulls people in.';
+  if (role === 'Shadow Watcher') return 'Quiet presence with rare but notable moments.';
   if (m.duplicate_count >= 5) return 'Occasionally spammy, but still part of the lore.';
   return 'Consistent presence with a steady contribution.';
 }

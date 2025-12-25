@@ -176,7 +176,7 @@ function App() {
       .slice(0, 5);
 
     const byArchetype = data.reduce((acc, curr) => {
-      const role = curr.analysis.role || 'Member';
+      const role = curr.analysis.role || 'Shadow Watcher';
       acc[role] = (acc[role] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -189,7 +189,7 @@ function App() {
     const tribeBoards = ARCHETYPE_ORDER
       .map((role) => {
         const members = data
-          .filter((m) => (m.analysis.role || 'Member') === role)
+          .filter((m) => (m.analysis.role || 'Shadow Watcher') === role)
           .sort((a, b) => b.analysis.value_score - a.analysis.value_score)
           .slice(0, 5);
         return { role, count: byArchetype[role] || 0, members };
