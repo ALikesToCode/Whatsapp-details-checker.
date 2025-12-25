@@ -148,13 +148,6 @@ function minmax(values: number[]): [number, number] {
   return [Math.min(...values), Math.max(...values)];
 }
 
-function percentile(values: number[], p: number): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.round((sorted.length - 1) * p);
-  return sorted[Math.min(Math.max(idx, 0), sorted.length - 1)];
-}
-
 function norm(value: number, [lo, hi]: [number, number]): number {
   if (hi <= lo) return 0;
   return Math.max(0, Math.min(1, (value - lo) / (hi - lo)));
@@ -232,6 +225,7 @@ export function analyzeWhatsAppMessages(messages: ChatMessage[]): MemberAnalytic
     for (const c of counts.values()) if (c > 1) duplicates += c - 1;
 
     const msgCount = senderMsgs.length;
+    const avgWords = msgCount ? words / msgCount : 0;
     metrics.set(sender, {
       msg_count: msgCount,
       word_count: words,
@@ -247,6 +241,7 @@ export function analyzeWhatsAppMessages(messages: ChatMessage[]): MemberAnalytic
       active_days: activeDays.size,
       duplicate_count: duplicates,
       short_ratio: msgCount ? emojiLike / msgCount : 0,
+      avg_words: avgWords,
       samples: senderMsgs.slice(-40).map((m) => m.content),
     });
   }
@@ -271,15 +266,6 @@ export function analyzeWhatsAppMessages(messages: ChatMessage[]): MemberAnalytic
 
   for (const [sender, m] of metrics.entries()) m.reply_helpfulness = replyHelp.get(sender) ?? 0;
 
-  const thresholds = {
-    answer_like: Math.max(2, percentile(Array.from(metrics.values()).map((m) => m.answer_like), 0.85)),
-    reply_helpfulness: Math.max(1, percentile(Array.from(metrics.values()).map((m) => m.reply_helpfulness), 0.85)),
-    link_count: Math.max(2, percentile(Array.from(metrics.values()).map((m) => m.link_count), 0.9)),
-    laughs: Math.max(1, percentile(Array.from(metrics.values()).map((m) => m.laughs), 0.9)),
-    long_msgs: Math.max(2, percentile(Array.from(metrics.values()).map((m) => m.long_msgs), 0.9)),
-    question_count: Math.max(2, percentile(Array.from(metrics.values()).map((m) => m.question_count), 0.9)),
-  };
-
   const keys = [
     'answer_like',
     'reply_helpfulness',
@@ -289,11 +275,15 @@ export function analyzeWhatsAppMessages(messages: ChatMessage[]): MemberAnalytic
     'active_days',
     'duplicate_count',
     'short_ratio',
+    'question_count',
+    'laughs',
+    'emoji_like',
+    'avg_words',
   ] as const;
   const ranges = new Map<string, [number, number]>();
   for (const k of keys) ranges.set(k, minmax(Array.from(metrics.values()).map((m) => Number(m[k] ?? 0))));
 
-  const members: MemberAnalytics[] = [];
+  const valueScores = new Map<string, number>();
   for (const [sender, m] of metrics.entries()) {
     const helpful =
       0.65 * norm(m.answer_like, ranges.get('answer_like')!) + 0.35 * norm(m.reply_helpfulness, ranges.get('reply_helpfulness')!);
@@ -308,8 +298,15 @@ export function analyzeWhatsAppMessages(messages: ChatMessage[]): MemberAnalytic
     const raw = 2.2 * helpful + 1.4 * substance + 0.7 * consistency - 1.8 * penalty;
     const score01 = 1 / (1 + Math.exp(-3 * (raw - 0.9)));
     const valueScore = Math.round(clamp(1 + 9 * score01, 1, 10) * 10) / 10;
+    valueScores.set(sender, valueScore);
+  }
 
-    const role = roleFrom(m, valueScore, thresholds);
+  const roles = assignRolesBalanced(metrics, ranges);
+
+  const members: MemberAnalytics[] = [];
+  for (const [sender, m] of metrics.entries()) {
+    const valueScore = valueScores.get(sender) ?? 1;
+    const role = roles.get(sender) ?? 'Shadow Watcher';
     const vibe = vibeFrom(m, role);
     const badges = badgesFrom(m, valueScore);
 
@@ -361,14 +358,105 @@ export function analyzeWhatsAppExportTexts(texts: string[]): MemberAnalytics[] {
   return members;
 }
 
-function roleFrom(m: any, valueScore: number, thresholds: any): string {
-  if (m.msg_count <= 2) return 'Ghost';
-  if (m.answer_like >= thresholds.answer_like || m.reply_helpfulness >= thresholds.reply_helpfulness) return 'Problem Solver';
-  if (m.link_count >= thresholds.link_count) return 'Curator';
-  if (m.laughs >= thresholds.laughs) return 'Comedian';
-  if (m.question_count >= thresholds.question_count && valueScore < 7) return 'Asker';
-  if (m.long_msgs >= thresholds.long_msgs) return 'Deep Writer';
-  return 'Shadow Watcher';
+const ROLE_ORDER = ['Problem Solver', 'Curator', 'Comedian', 'Asker', 'Deep Writer', 'Shadow Watcher'] as const;
+type RoleName = typeof ROLE_ORDER[number];
+
+function roleScores(m: any, ranges: Map<string, [number, number]>): Record<RoleName, number> {
+  const scores: Record<RoleName, number> = {
+    'Problem Solver':
+      0.65 * norm(m.answer_like, ranges.get('answer_like')!) +
+      0.35 * norm(m.reply_helpfulness, ranges.get('reply_helpfulness')!),
+    'Curator': norm(m.link_count, ranges.get('link_count')!),
+    'Comedian':
+      0.7 * norm(m.laughs, ranges.get('laughs')!) +
+      0.3 * norm(m.emoji_like, ranges.get('emoji_like')!),
+    'Asker': norm(m.question_count, ranges.get('question_count')!),
+    'Deep Writer':
+      0.6 * norm(m.long_msgs, ranges.get('long_msgs')!) +
+      0.25 * norm(m.unique_words, ranges.get('unique_words')!) +
+      0.15 * norm(m.avg_words, ranges.get('avg_words')!),
+    'Shadow Watcher': 0,
+  };
+  const maxScore = Math.max(
+    scores['Problem Solver'],
+    scores['Curator'],
+    scores['Comedian'],
+    scores['Asker'],
+    scores['Deep Writer']
+  );
+  scores['Shadow Watcher'] = clamp(1 - maxScore, 0, 1);
+  return scores;
+}
+
+function assignRolesBalanced(metrics: Map<string, any>, ranges: Map<string, [number, number]>): Map<string, string> {
+  const assigned = new Map<string, string>();
+  const active: string[] = [];
+
+  for (const [sender, m] of metrics.entries()) {
+    if (m.msg_count <= 2) {
+      assigned.set(sender, 'Ghost');
+    } else {
+      active.push(sender);
+    }
+  }
+
+  if (active.length === 0) return assigned;
+
+  const base = Math.floor(active.length / ROLE_ORDER.length);
+  const remainder = active.length % ROLE_ORDER.length;
+  const targets = new Map<RoleName, number>();
+  ROLE_ORDER.forEach((role, idx) => targets.set(role, base + (idx < remainder ? 1 : 0)));
+  const remaining = new Map(targets);
+
+  const scores = new Map<string, Record<RoleName, number>>();
+  for (const sender of active) scores.set(sender, roleScores(metrics.get(sender), ranges));
+
+  const rankings = new Map<RoleName, string[]>();
+  for (const role of ROLE_ORDER) {
+    rankings.set(
+      role,
+      [...active].sort((a, b) => scores.get(b)![role] - scores.get(a)![role])
+    );
+  }
+
+  const indices = new Map<RoleName, number>();
+  for (const role of ROLE_ORDER) indices.set(role, 0);
+
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const role of ROLE_ORDER) {
+      if ((remaining.get(role) ?? 0) <= 0) continue;
+      const ranking = rankings.get(role)!;
+      let idx = indices.get(role) ?? 0;
+      while (idx < ranking.length && assigned.has(ranking[idx])) idx += 1;
+      indices.set(role, idx);
+      if (idx >= ranking.length) continue;
+      const sender = ranking[idx];
+      indices.set(role, idx + 1);
+      assigned.set(sender, role);
+      remaining.set(role, (remaining.get(role) ?? 0) - 1);
+      progress = true;
+    }
+  }
+
+  if (assigned.size < metrics.size) {
+    const leftovers = active.filter((sender) => !assigned.has(sender));
+    for (const sender of leftovers) {
+      const candidates = ROLE_ORDER.filter((role) => (remaining.get(role) ?? 0) > 0);
+      const pool = candidates.length ? candidates : ROLE_ORDER;
+      let bestRole = pool[0];
+      for (const role of pool) {
+        if (scores.get(sender)![role] > scores.get(sender)![bestRole]) bestRole = role;
+      }
+      assigned.set(sender, bestRole);
+      if ((remaining.get(bestRole) ?? 0) > 0) {
+        remaining.set(bestRole, (remaining.get(bestRole) ?? 0) - 1);
+      }
+    }
+  }
+
+  return assigned;
 }
 
 function vibeFrom(m: any, role: string): string {
