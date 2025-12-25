@@ -19,8 +19,9 @@ python3 analyze_chat.py --input "WhatsApp Chat with*.txt" --output web/public/da
 
 ```bash
 cd web
+pnpm install
 pnpm dev
 ```
 
-- Upload one or more WhatsApp `.txt` exports in the UI (runs locally in the browser), or use the demo `members.json`.
-
+- Upload one or more WhatsApp `.txt` exports in the UI (runs locally in the browser).
+- The generated `web/public/data/members.json` is intentionally gitignored.
