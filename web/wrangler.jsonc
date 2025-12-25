@@ -1,0 +1,8 @@
+{
+  "name": "echos-web",
+  "account_id": "9b0a1524e478000ec9b3ff2da6104d81",
+  "compatibility_date": "2025-12-25",
+  "assets": {
+    "directory": "./dist"
+  }
+}
